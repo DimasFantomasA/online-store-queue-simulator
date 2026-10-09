@@ -1,0 +1,60 @@
+
+@startuml
+title 1. Главный алгоритм моделирования СМО
+
+skinparam defaultFontSize 16
+skinparam activityFontSize 15
+skinparam wrapWidth 180
+skinparam shadowing false
+
+|SimulationEngine|
+start
+:Установить модельное время t = 0;
+:Задать лимит N генерируемых заказов;
+
+|Компоненты СМО|
+:Создать источники, кольцевой буфер,
+серверы и диспетчеры;
+:Обнулить статистику;
+:OrderSource: сгенерировать первый
+интервал Δt по закону ИЗ1;
+
+|EventCalendar|
+:Запланировать первый ORDER_ARRIVAL
+на время t + Δt;
+
+while (Календарь не пуст?) is (Да)
+  :Извлечь ближайшее событие;
+
+  |SimulationEngine|
+  :Установить модельное время
+равным времени события;
+
+  if (Тип события = ORDER_ARRIVAL?) then (Да)
+    |Диспетчеры СМО|
+    :Обработать поступление заказа;
+    note right
+      Детальная схема:
+      flowchart-arrival.puml
+    end note
+  else (SERVICE_COMPLETED)
+    |Диспетчеры СМО|
+    :Обработать завершение обслуживания;
+    note right
+      Детальная схема:
+      flowchart-completion.puml
+    end note
+  endif
+
+  |EventCalendar|
+endwhile (Нет)
+
+|Статистика|
+:Рассчитать вероятность отказа;
+:Рассчитать среднее время ожидания,
+обслуживания и пребывания;
+:Рассчитать загрузку серверов;
+
+|SimulationEngine|
+stop
+@enduml
