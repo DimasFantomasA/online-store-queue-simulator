@@ -1,0 +1,144 @@
+@startuml
+scale 1400 width
+skinparam defaultFontSize 12
+skinparam wrapWidth 160
+title Flowchart - Online Store Queue Simulator
+
+|SimulationEngine|
+start
+:Установить модельное время t = 0;
+:Задать лимит генерации заказов;
+
+|CircularBuffer|
+:Создать пустые ячейки буфера;
+:Установить указатель на ячейку 1;
+
+|Server|
+:Создать серверы со статусом FREE;
+
+|StatisticsCollector|
+:Обнулить статистику;
+
+|OrderSource|
+:Сгенерировать первый интервал
+по экспоненциальному закону ИЗ1;
+
+|EventCalendar|
+:Запланировать первый ORDER_ARRIVAL;
+
+while (Календарь не пуст?) is (Да)
+
+  :Извлечь ближайшее событие;
+
+  |SimulationEngine|
+  :Установить время события;
+
+  if (Тип = ORDER_ARRIVAL?) then (Да)
+
+    |OrderSource|
+    :Создать новый заказ;
+
+    |StatisticsCollector|
+    :Увеличить число сгенерированных заказов;
+
+    |OrderSource|
+    if (Лимит генерации не достигнут?) then (Да)
+      :Сгенерировать следующий интервал ИЗ1;
+      |EventCalendar|
+      :Запланировать следующий ORDER_ARRIVAL;
+    endif
+
+    |PlacementDispatcher|
+    :Запросить свободный сервер;
+
+    |SelectionDispatcher|
+    :Найти свободный сервер по Д2П1;
+
+    if (Свободный сервер найден?) then (Да)
+
+      |Server|
+      :Принять заказ и установить BUSY;
+      :Определить время обслуживания ПЗ2;
+
+      |EventCalendar|
+      :Запланировать SERVICE_COMPLETED;
+
+    else (Нет)
+
+      |PlacementDispatcher|
+      :Передать заказ в буфер;
+
+      |CircularBuffer|
+      :Искать свободную ячейку по кольцу Д1ОЗ1;
+
+      if (Свободная ячейка найдена?) then (Да)
+        :Записать заказ в ячейку;
+      else (Нет)
+        :Вытеснить заказ под указателем Д1ОО1;
+        :Записать новый заказ на его место;
+      endif
+
+      :Переместить указатель на следующую позицию;
+      :Вернуть результат постановки;
+
+      |PlacementDispatcher|
+      if (Был вытеснен заказ?) then (Да)
+        |StatisticsCollector|
+        :Зарегистрировать отказ старому заказу;
+      endif
+
+    endif
+
+  else (Нет - SERVICE_COMPLETED)
+
+    |Server|
+    :Завершить обработку заказа;
+    :Установить статус FREE;
+
+    |StatisticsCollector|
+    :Зафиксировать результаты обслуживания;
+
+    |SelectionDispatcher|
+    :Вызвать buffer.takeOldestOrder();
+
+    |CircularBuffer|
+    if (Буфер пуст?) then (Да)
+      :Вернуть null;
+    else (Нет)
+      :Найти самый старый заказ FIFO Д2Б1;
+      :Удалить заказ из его ячейки;
+      :Вернуть выбранный заказ;
+    endif
+
+    |SelectionDispatcher|
+    if (Заказ получен?) then (Да)
+
+      :Выбрать свободный сервер по Д2П1;
+
+      |Server|
+      :Принять заказ и установить BUSY;
+      :Определить время обслуживания ПЗ2;
+
+      |EventCalendar|
+      :Запланировать SERVICE_COMPLETED;
+
+    else (Нет)
+
+      |Server|
+      :Остаться в состоянии FREE;
+
+    endif
+
+  endif
+
+  |EventCalendar|
+
+endwhile (Нет)
+
+|StatisticsCollector|
+:Рассчитать итоговые показатели;
+
+|SimulationEngine|
+stop
+
+@enduml
