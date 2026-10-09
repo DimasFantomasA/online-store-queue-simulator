@@ -88,9 +88,9 @@
 
 Генерация заказов ограничивается заданным числом `N`. После поступления последнего заказа новые `ORDER_ARRIVAL` не планируются, но события завершения обслуживания оставшихся заказов продолжают обрабатываться. После опустошения календаря рассчитывается итоговая статистика.
 
-[![Главный алгоритм моделирования СМО](diagrams/flowchart-main.svg)](diagrams/flowchart-main.svg)
+[![Главный алгоритм моделирования СМО](diagrams/flowchart_main.svg)](diagrams/flowchart_main.svg)
 
-**Материалы:** [Открыть SVG в полном размере](diagrams/flowchart-main.svg) · [Исходный код PlantUML](diagrams/flowchart-main.puml)
+**Материалы:** [Открыть SVG в полном размере](diagrams/flowchart_main.svg) · [Исходный код PlantUML](diagrams/flowchart_main.puml)
 
 ---
 
@@ -104,9 +104,9 @@
 2. **Все серверы заняты, в буфере есть место.** Буфер ищет свободную ячейку по кольцу (Д1ОЗ1), размещает новый заказ и перемещает указатель на следующую позицию.
 3. **Все серверы заняты, буфер заполнен.** Буфер вытесняет заказ под указателем (Д1ОО1), записывает новый заказ на его место и перемещает указатель. Отказ регистрируется для **вытесненного**, а не для вновь поступившего заказа.
 
-[![Обработка поступления заказа](diagrams/flowchart-arrival.svg)](diagrams/flowchart-arrival.svg)
+[![Обработка поступления заказа](diagrams/flowchart_arrival.svg)](diagrams/flowchart_arrival.svg)
 
-**Материалы:** [Открыть SVG в полном размере](diagrams/flowchart-arrival.svg) · [Исходный код PlantUML](diagrams/flowchart-arrival.puml)
+**Материалы:** [Открыть SVG в полном размере](diagrams/flowchart_arrival.svg) · [Исходный код PlantUML](diagrams/flowchart_arrival.puml)
 
 ---
 
@@ -121,9 +121,9 @@
 
 Извлечение заказа по FIFO **не изменяет указатель постановки** в кольцевой буфер.
 
-[![Завершение обслуживания](diagrams/flowchart-completion.svg)](diagrams/flowchart-completion.svg)
+[![Завершение обслуживания](diagrams/flowchart_completion.svg)](diagrams/flowchart_completion.svg)
 
-**Материалы:** [Открыть SVG в полном размере](diagrams/flowchart-completion.svg) · [Исходный код PlantUML](diagrams/flowchart-completion.puml)
+**Материалы:** [Открыть SVG в полном размере](diagrams/flowchart_completion.svg) · [Исходный код PlantUML](diagrams/flowchart_completion.puml)
 
 ---
 
