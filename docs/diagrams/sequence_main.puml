@@ -1,0 +1,186 @@
+
+@startuml
+title 4. Основная диаграмма последовательности СМО
+
+hide footbox
+autonumber
+
+skinparam defaultFontSize 14
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 55
+skinparam ParticipantPadding 12
+skinparam shadowing false
+
+participant "Simulation\nEngine" as Engine
+participant "Order\nSource" as Source
+queue "Event\nCalendar" as Calendar
+control "Placement\nDispatcher" as Placement
+control "Selection\nDispatcher" as Selection
+collections "Circular\nBuffer" as Buffer
+participant "Server\n(П1...Пm)" as Server
+database "Statistics\nCollector" as Stats
+
+== Инициализация моделирования ==
+
+Engine -> Source: nextInterarrival()
+
+note right of Source
+  ИБ — бесконечный источник.
+  ИЗ1 — экспоненциальный интервал
+  между поступлениями заказов.
+end note
+
+Source --> Engine: deltaT
+
+Engine -> Calendar: schedule(ORDER_ARRIVAL, deltaT)
+
+== Главный цикл моделирования ==
+
+loop Пока календарь не пуст
+
+    Engine -> Calendar: popNextEvent()
+    Calendar --> Engine: Event(type, time, data)
+
+    Engine -> Engine: Установить модельное время
+
+    alt ORDER_ARRIVAL
+
+        Engine -> Source: createOrder()
+        Source --> Engine: Order
+
+        Engine -> Stats: recordGenerated(order)
+
+        opt Лимит N не достигнут
+            Engine -> Source: nextInterarrival()
+            Source --> Engine: deltaT
+
+            Engine -> Calendar: scheduleArrival(t + deltaT)
+        end
+
+        Engine -> Placement: handleArrival(order)
+
+        Placement -> Selection: findFreeServer()
+
+        note over Selection, Server
+          Д2П1 — свободные серверы
+          проверяются по приоритету номера.
+        end note
+
+        Selection --> Placement: Server / null
+
+        alt Свободный сервер найден
+
+            Placement -> Server: startService(order, t)
+
+            note right of Server
+              ПЗ2 — равномерный закон
+              времени обслуживания.
+            end note
+
+            Server --> Placement: completionTime
+
+            Placement --> Engine: Started(server, completionTime)
+
+            Engine -> Calendar: scheduleCompletion(server, completionTime)
+
+        else Все серверы заняты
+
+            Placement -> Buffer: put(order)
+
+            Buffer -> Buffer: findFreeSlot(pointer)
+
+            note right of Buffer
+              Д1ОЗ1 — поиск свободной
+              ячейки по кольцу,
+              начиная с указателя.
+            end note
+
+            alt Свободная ячейка найдена
+
+                Buffer -> Buffer: insert(order)
+                Buffer -> Buffer: movePointer()
+
+                Buffer --> Placement: Stored(evicted = null)
+
+            else Буфер заполнен
+
+                Buffer -> Buffer: evictAtPointer()
+
+                note right of Buffer
+                  Д1ОО1 — отказ заявке
+                  под текущим указателем.
+                end note
+
+                Buffer -> Buffer: insertNewOrder(order)
+                Buffer -> Buffer: movePointer()
+
+                Buffer --> Placement: Replaced(evictedOrder)
+
+            end
+
+            Placement --> Engine: PlacementResult
+
+            opt Вытеснен старый заказ
+                Engine -> Stats: recordRejected(evictedOrder)
+            end
+
+        end
+
+    else SERVICE_COMPLETED
+
+        Engine -> Server: completeService()
+
+        Server --> Engine: CompletedOrder
+
+        Engine -> Stats: recordCompleted(order)
+
+        Engine -> Selection: dispatchNext()
+
+        Selection -> Buffer: takeOldestOrder()
+
+        note over Selection, Buffer
+          Д2Б1 — FIFO.
+          Выбирается самый старый заказ.
+          Указатель записи не изменяется.
+        end note
+
+        alt Буфер не пуст
+
+            Buffer -> Buffer: removeOldestOrder()
+            Buffer --> Selection: Order
+
+            Selection -> Selection: selectFreeServer(Д2П1)
+
+            Selection -> Server: startService(order, t)
+
+            Server --> Selection: completionTime
+
+            Selection --> Engine: Started(server, completionTime)
+
+            Engine -> Calendar: scheduleCompletion(server, completionTime)
+
+        else Буфер пуст
+
+            Buffer --> Selection: null
+
+
+            Selection --> Engine: NoOrder
+
+            note over Selection, Server
+              Сервер остаётся свободным.
+              Новое обслуживание
+              не планируется.
+            end note
+
+        end
+
+    end
+
+end
+
+== Завершение моделирования ==
+
+Engine -> Stats: calculateResults()
+Stats --> Engine: SimulationResults
+
+@enduml
