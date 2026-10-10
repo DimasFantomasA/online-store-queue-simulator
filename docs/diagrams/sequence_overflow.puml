@@ -1,0 +1,131 @@
+
+@startuml
+title Сквозной сценарий: вытеснение заявки и последующее обслуживание
+
+hide footbox
+autonumber
+skinparam defaultFontSize 14
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 50
+skinparam shadowing false
+
+<style>
+participant {
+  Padding 12
+}
+</style>
+
+participant "Simulation\nEngine" as Engine
+participant "Order\nSource" as Source
+queue "Event\nCalendar" as Calendar
+control "Placement\nDispatcher" as Placement
+control "Selection\nDispatcher" as Selection
+collections "Circular\nBuffer" as Buffer
+participant "Server П1" as Server
+database "Statistics\nCollector" as Stats
+
+note over Buffer, Server
+  Начальное состояние:
+  Буфер [A, B, C], указатель = 2.
+  П1 обрабатывает X (до t = 13.2).
+  П2 обрабатывает Y (занят).
+  A поступил раньше C и D.
+end note
+
+note over Engine, Calendar
+  В календаре:
+  ORDER_ARRIVAL(D) — t = 12.5
+  SERVICE_COMPLETED(П1, X) — t = 13.2
+  Для примера D — последний генерируемый заказ.
+end note
+
+== Событие 1: поступление D (t = 12.5) ==
+
+Engine -> Calendar: popNextEvent()
+Calendar --> Engine: ORDER_ARRIVAL, t = 12.5
+Engine -> Engine: modelTime = 12.5
+
+Engine -> Source: createOrder()
+Source --> Engine: D
+Engine -> Stats: recordGenerated(D)
+
+Engine -> Placement: handleArrival(D)
+Placement -> Selection: findFreeServer()
+Selection --> Placement: null (все серверы заняты)
+
+Placement -> Buffer: put(D)
+Buffer -> Buffer: findFreeSlot(pointer = 2)
+Buffer --> Buffer: null (мест нет)
+
+note right of Buffer
+  Д1ОЗ1: поиск свободного места по кольцу.
+  Буфер полностью заполнен.
+end note
+
+Buffer -> Buffer: evictAtPointer()
+Buffer --> Buffer: B
+Buffer -> Buffer: writeAtPointer(D)
+Buffer -> Buffer: advancePointer()
+
+note right of Buffer
+  Д1ОО1: B вытеснен, D поставлен
+  в ячейку 2. Указатель: 2 -> 3.
+  Новый буфер: [A, D, C].
+end note
+
+Buffer --> Placement: Replaced(evictedOrder = B)
+Placement --> Engine: Replaced(B)
+Engine -> Stats: recordRejected(B)
+
+== Событие 2: завершение X на П1 (t = 13.2) ==
+
+Engine -> Calendar: popNextEvent()
+Calendar --> Engine: SERVICE_COMPLETED(П1, X), t = 13.2
+Engine -> Engine: modelTime = 13.2
+
+Engine -> Server: completeService()
+Server --> Engine: Completed(X), П1 = FREE
+Engine -> Stats: recordCompleted(X)
+
+Engine -> Selection: dispatchNext()
+Selection -> Buffer: takeOldestOrder()
+Buffer -> Buffer: findOldestByArrivalTime()
+Buffer --> Buffer: A
+Buffer -> Buffer: remove(A)
+Buffer --> Selection: A
+
+note right of Buffer
+  Д2Б1 (FIFO): выбран самый старый A.
+  Буфер: [пусто, D, C].
+  Указатель постановки остался = 3.
+end note
+
+Selection -> Selection: findFreeServerByPriority()
+Selection --> Selection: П1
+
+note right of Selection
+  Д2П1: свободный сервер с
+  наивысшим приоритетом — П1.
+end note
+
+Selection -> Server: startService(A, t = 13.2)
+Server --> Selection: completionTime = 15.0
+
+note right of Server
+  ПЗ2: время обработки выбрано
+  по равномерному закону.
+  Здесь 1.8 — пример значения.
+end note
+
+Selection --> Engine: Started(П1, A, 15.0)
+Engine -> Stats: recordServiceStart(A, waitingTime)
+Engine -> Calendar: scheduleCompletion(П1, A, 15.0)
+Calendar --> Engine: Event scheduled
+
+note over Buffer, Server
+  Итог: П1 обрабатывает A, П2 — Y.
+  В буфере ожидают D и C.
+  B получил отказ и уже не будет обслужен.
+end note
+
+@enduml
