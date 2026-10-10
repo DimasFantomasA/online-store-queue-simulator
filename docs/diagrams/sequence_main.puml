@@ -8,7 +8,11 @@ autonumber
 skinparam defaultFontSize 14
 skinparam sequenceMessageAlign center
 skinparam maxMessageSize 55
-skinparam ParticipantPadding 12
+<style>
+participant {
+Padding 12
+}
+</style>
 skinparam shadowing false
 
 participant "Simulation\nEngine" as Engine
