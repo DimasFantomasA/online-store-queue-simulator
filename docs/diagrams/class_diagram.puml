@@ -1,0 +1,304 @@
+
+@startuml
+title Class Diagram - Online Store Queue Simulator
+
+top to bottom direction
+
+skinparam backgroundColor white
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype polyline
+skinparam nodesep 16
+skinparam ranksep 22
+skinparam defaultFontSize 12
+skinparam classFontSize 12
+skinparam classAttributeFontSize 11
+skinparam packageStyle rectangle
+
+hide circle
+hide empty members
+
+package "Заказы и серверы" {
+
+  class Order {
+    - id: int
+    - sourceId: int
+    - arrivalTime: double
+    - serviceStartTime: Double
+    - completionTime: Double
+    - rejectionTime: Double
+    - status: OrderStatus
+    + getId(): int
+    + getSourceId(): int
+    + getArrivalTime(): double
+    + getWaitingTime(): Double
+    + getServiceTime(): Double
+    + getTimeInSystem(): Double
+    + startService(time: double): void
+    + complete(time: double): void
+    + reject(time: double): void
+  }
+
+  enum OrderStatus {
+    WAITING
+    PROCESSING
+    COMPLETED
+    REJECTED
+  }
+
+  class OrderSource {
+    - sourceId: int
+    - arrivalRate: double
+    - nextOrderId: int
+    - random: Random
+    + nextInterarrival(): double
+    + createOrder(time: double): Order
+  }
+
+  class Server {
+    - id: int
+    - currentOrder: Order
+    - serviceStartTime: Double
+    - plannedCompletionTime: Double
+    - totalBusyTime: double
+    - minServiceTime: double
+    - maxServiceTime: double
+    - random: Random
+    + getId(): int
+    + isBusy(): boolean
+    + getCurrentOrder(): Order
+    + startService(order: Order, time: double): double
+    + completeService(time: double): Order
+    + getUtilization(time: double): double
+  }
+}
+
+package "Буфер и диспетчеризация" {
+
+  class CircularBuffer {
+    - slots: Order[]
+    - capacity: int
+    - size: int
+    - pointer: int
+    + put(order: Order): PlacementResult
+    + takeOldestOrder(): Order
+    + isFull(): boolean
+    + isEmpty(): boolean
+    + getPointer(): int
+    + getSize(): int
+    + getSlotsSnapshot(): Order[]
+    - findFreeSlot(): int
+    - findOldestSlot(): int
+    - evictAtPointer(): Order
+    - advancePointer(): void
+  }
+
+  class PlacementResult {
+    - insertedIndex: int
+    - evictedOrder: Order
+    - status: PlacementStatus
+    + getEvictedOrder(): Order
+    + getInsertedIndex(): int
+    + wasReplacement(): boolean
+  }
+
+  enum PlacementStatus {
+    STORED
+    REPLACED
+  }
+
+  class PlacementDispatcher {
+    - selection: SelectionDispatcher
+    - buffer: CircularBuffer
+    + handleArrival(order: Order, time: double): ArrivalResult
+  }
+
+  class SelectionDispatcher {
+    - servers: List<Server>
+    - buffer: CircularBuffer
+    + findFreeServer(): Server
+    + dispatchNext(time: double): ServiceStartResult
+  }
+
+  class ArrivalResult {
+    - startedService: ServiceStartResult
+    - bufferPlacement: PlacementResult
+    + getStartedService(): ServiceStartResult
+    + getBufferPlacement(): PlacementResult
+  }
+
+  class ServiceStartResult {
+    - server: Server
+    - order: Order
+    - completionTime: double
+    + getCompletionTime(): double
+    + getServer(): Server
+    + getOrder(): Order
+  }
+}
+
+package "Управление событиями" {
+
+  class Event {
+    - type: EventType
+    - time: double
+    - order: Order
+    - server: Server
+    + getType(): EventType
+    + getTime(): double
+    + getOrder(): Order
+    + getServer(): Server
+  }
+
+  enum EventType {
+    ORDER_ARRIVAL
+    SERVICE_COMPLETED
+  }
+
+  class EventCalendar {
+    - events: PriorityQueue<Event>
+    + scheduleArrival(time: double): void
+    + scheduleCompletion(
+        server: Server,
+        order: Order,
+        time: double
+      ): void
+    + popNextEvent(): Event
+    + isEmpty(): boolean
+    + getPendingEvents(): List<Event>
+  }
+
+
+  class SimulationEngine {
+    - currentTime: double
+    - maxOrders: int
+    - generatedCount: int
+    - source: OrderSource
+    - calendar: EventCalendar
+    - placement: PlacementDispatcher
+    - selection: SelectionDispatcher
+    - buffer: CircularBuffer
+    - servers: List<Server>
+    - statistics: StatisticsCollector
+    + initialize(): void
+    + step(): boolean
+    + runAutomatic(): SimulationResults
+    + getSnapshot(): SimulationSnapshot
+  }
+}
+
+package "Статистика и вывод" {
+
+  class StatisticsCollector {
+    - bySource: Map<Integer, SourceStatistics>
+    + recordGenerated(order: Order): void
+    + recordRejected(order: Order): void
+    + recordServiceStart(order: Order): void
+    + recordCompleted(order: Order): void
+    + calculateResults(
+        time: double,
+        servers: List<Server>
+      ): SimulationResults
+  }
+
+  class SourceStatistics {
+    - sourceId: int
+    - generatedCount: int
+    - rejectedCount: int
+    - completedCount: int
+    - waitingTimeSum: double
+    - waitingTimeSquareSum: double
+    - serviceTimeSum: double
+    - serviceTimeSquareSum: double
+    - timeInSystemSum: double
+    + recordGenerated(): void
+    + recordRejected(): void
+    + recordServiceStart(wait: double): void
+    + recordCompleted(
+        service: double,
+        total: double
+      ): void
+    + getMeanWaitingTime(): double
+    + getWaitingVariance(): double
+    + getMeanServiceTime(): double
+    + getServiceVariance(): double
+    + getMeanTimeInSystem(): double
+  }
+
+  class SimulationResults {
+    - sourceStatistics: List<SourceStatistics>
+    - serverUtilization: Map<Integer, Double>
+    - totalSimulationTime: double
+    + getSourceStatistics(): List<SourceStatistics>
+    + getServerUtilization(): Map<Integer, Double>
+  }
+
+  class SimulationSnapshot {
+    - currentTime: double
+    - pendingEvents: List<Event>
+    - bufferSlots: Order[]
+    - bufferPointer: int
+    - serverStates: Map<Integer, String>
+    - currentStatistics: List<SourceStatistics>
+    + getCurrentTime(): double
+    + getBufferSlots(): Order[]
+  }
+
+  class ResultsPresenter {
+    + showGraphs(results: SimulationResults): void
+  }
+
+  class StepPresenter {
+    + showState(snapshot: SimulationSnapshot): void
+  }
+}
+
+' Основные связи
+
+Order --> OrderStatus
+Server --> "0..1" Order : processes
+CircularBuffer "1" o-- "0..*" Order : stores
+PlacementResult --> PlacementStatus
+
+' Диспетчеризация
+
+PlacementDispatcher --> SelectionDispatcher
+PlacementDispatcher --> CircularBuffer
+
+SelectionDispatcher --> "1..*" Server : priority
+SelectionDispatcher --> CircularBuffer : FIFO
+
+' Календарь событий
+
+Event --> EventType
+EventCalendar "1" o-- "0..*" Event
+
+SimulationEngine --> OrderSource
+SimulationEngine --> EventCalendar
+SimulationEngine --> PlacementDispatcher
+SimulationEngine --> StatisticsCollector
+
+' Статистика
+
+StatisticsCollector "1" *-- "1..*" SourceStatistics
+StatisticsCollector ..> SimulationResults
+
+' Режимы работы
+
+ResultsPresenter ..> SimulationResults : ОР2
+StepPresenter ..> SimulationSnapshot : ОД1
+
+' Краткие пояснения
+
+note right of CircularBuffer
+  Д1ОЗ1: кольцевой поиск.
+  Д1ОО1: вытеснение под указателем.
+  Д2Б1: FIFO при извлечении.
+end note
+
+note right of SelectionDispatcher
+  Д2П1: свободный сервер
+  с наименьшим номером.
+end note
+
+@enduml
